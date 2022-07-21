@@ -2,11 +2,11 @@ package io.github.idoomful.bukkitutils.object;
 
 import java.util.Map;
 
-final class ConfigPair<K, V> implements Map.Entry<K, V> {
+public final class Pair<K, V> implements Map.Entry<K, V> {
     private K key;
     private V value;
 
-    public ConfigPair(K key, V value) {
+    public Pair(K key, V value) {
         this.key = key;
         this.value = value;
     }

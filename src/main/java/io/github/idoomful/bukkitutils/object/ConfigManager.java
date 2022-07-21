@@ -31,7 +31,7 @@ public class ConfigManager<T extends JavaPlugin> {
      */
     public ConfigManager<T> addConfigurationFile(String name) {
         // Add required files
-        Map.Entry<File, FileConfiguration> filePair = new ConfigPair<>(new File(plugin.getDataFolder(), name + ".yml"), new YamlConfiguration());
+        Map.Entry<File, FileConfiguration> filePair = new Pair<>(new File(plugin.getDataFolder(), name + ".yml"), new YamlConfiguration());
         files.put(name, filePair);
 
         // Create <name>.yml

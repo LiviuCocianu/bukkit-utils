@@ -89,9 +89,9 @@ public class BeautifyUtils {
      * @param pattern The sound pattern
      */
     public static void playSoundSimple(JavaPlugin main, Player player, String pattern) {
-        String[] args = pattern.split(" ");
+        final String[] args = pattern.split(" ");
 
-        Sound sound = Sound.valueOf(args[0]);
+        final Sound sound = validateSoundEnum(args[0]);
         float volume = Float.parseFloat(args[1]);
         float pitch = Float.parseFloat(args[2]);
         int repeat = 1, delay = 0;
@@ -99,8 +99,8 @@ public class BeautifyUtils {
         if (args.length >= 4) repeat = Integer.parseInt(args[3]);
         if (args.length >= 5) delay = Integer.parseInt(args[4]);
 
-        AtomicInteger counter = new AtomicInteger(repeat);
-        AtomicInteger ID = new AtomicInteger();
+        final AtomicInteger counter = new AtomicInteger(repeat);
+        final AtomicInteger ID = new AtomicInteger();
 
         ID.set(Bukkit.getScheduler().scheduleSyncRepeatingTask(main, () -> {
             if (counter.get() > 0) {
@@ -121,9 +121,9 @@ public class BeautifyUtils {
      * @param pattern The sound pattern
      */
     public static void playSound(JavaPlugin main, Player player, String pattern) {
-        String[] args = pattern.split(" ");
+        final String[] args = pattern.split(" ");
 
-        Sound sound = Sounds.valueOf(args[0]).getSound();
+        final Sound sound = validateSoundEnum(args[0]);
         float volume = Float.parseFloat(args[1]);
         float pitch = Float.parseFloat(args[2]);
         int repeat = 1, delay = 0;
@@ -131,8 +131,8 @@ public class BeautifyUtils {
         if (args.length >= 4) repeat = Integer.parseInt(args[3]);
         if (args.length >= 5) delay = Integer.parseInt(args[4]);
 
-        AtomicInteger counter = new AtomicInteger(repeat);
-        AtomicInteger ID = new AtomicInteger();
+        final AtomicInteger counter = new AtomicInteger(repeat);
+        final AtomicInteger ID = new AtomicInteger();
 
         ID.set(Bukkit.getScheduler().scheduleSyncRepeatingTask(main, () -> {
             if (counter.get() > 0) {
@@ -140,6 +140,14 @@ public class BeautifyUtils {
                 counter.decrementAndGet();
             } else Bukkit.getScheduler().cancelTask(ID.get());
         }, 0, delay));
+    }
+
+    private static Sound validateSoundEnum(String sound) {
+        try {
+            return Sounds.valueOf(sound).getSound();
+        } catch(IllegalArgumentException ignored) {
+            return Sound.valueOf(sound);
+        }
     }
 
     /**
@@ -204,6 +212,7 @@ public class BeautifyUtils {
         pb.display(players);
     }
 
+    @SuppressWarnings("unused")
     public enum Sounds {
         AMBIENCE_CAVE("AMBIENCE_CAVE", "AMBIENT_CAVE"),
         AMBIENCE_RAIN("AMBIENCE_RAIN", "WEATHER_RAIN"),

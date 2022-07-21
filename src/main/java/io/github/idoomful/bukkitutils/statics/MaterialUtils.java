@@ -1,8 +1,13 @@
 package io.github.idoomful.bukkitutils.statics;
 
+import org.bukkit.Chunk;
 import org.bukkit.Material;
+import org.bukkit.World;
+import org.bukkit.block.Block;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class MaterialUtils {
@@ -51,6 +56,38 @@ public class MaterialUtils {
         }
 
         return "stone";
+    }
+
+    /**
+     * Gets a list of all blocks of this material from this chunk
+     *
+     * @param chunk Chunk to be scanned
+     * @param mat Material to be searched
+     * @return A list of blocks
+     */
+    public static List<Block> getBlocksInChunk(Chunk chunk, Material mat, int minY, int maxY) throws IllegalArgumentException {
+        final List<Block> blocks = new ArrayList<>();
+
+        if(minY > maxY) throw new IllegalArgumentException("minY cannot be bigger than maxY");
+
+        final int constMaxY = !VersionUtils.usesVersionBetween("1.4.x", "1.17.x")
+                    && chunk.getWorld().getEnvironment() == World.Environment.NORMAL
+                    ?  -64 : 0;
+        final int processedMin = Math.max(minY, constMaxY);
+        final int processedMax = Math.min(maxY, 255);
+
+        for(int y = processedMax; y >= processedMin; y--) {
+            for(int x = 0; x < 15; x++) {
+                for(int z = 0; z < 15; z++) {
+                    final Block block = chunk.getBlock(x, y, z);
+
+                    if(block.getType() == mat)
+                        blocks.add(block);
+                }
+            }
+        }
+
+        return blocks;
     }
 
     static {

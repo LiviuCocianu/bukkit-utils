@@ -290,7 +290,7 @@ public class ItemBuilder {
             }
 
             // TODO Check for "customModelData"
-            if (aData.startsWith("customModelData:")) {
+            if (aData.startsWith("customModelData:") || aData.startsWith("custom-model-data:")) {
                 if(!VersionUtils.usesVersionBetween("1.1.x", "1.13.x")) {
                     ItemMeta im = result.getItemMeta();
                     assert im != null;

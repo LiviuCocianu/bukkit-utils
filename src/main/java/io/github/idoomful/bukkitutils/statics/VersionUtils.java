@@ -15,7 +15,7 @@ public class VersionUtils {
     public static boolean usesVersionBetween(String start, String end) {
         String serverVersion = getServerVersion();
 
-        int[][] patchVersions = new int[17 + 1][];
+        int[][] patchVersions = new int[19 + 1][];
 
         patchVersions[1] = new int[] {0, 1};
         patchVersions[2] = new int[] {1, 2, 3, 4, 5};
@@ -34,6 +34,8 @@ public class VersionUtils {
         patchVersions[15] = new int[] {0, 1, 2};
         patchVersions[16] = new int[] {0, 1, 2, 3, 4, 5};
         patchVersions[17] = new int[] {0, 1};
+        patchVersions[18] = new int[] {0, 1, 2};
+        patchVersions[19] = new int[] {0, 1};
 
         for(int browsedMinorVer = 4; browsedMinorVer < patchVersions.length; browsedMinorVer++) {
             for(int j = 0; j < patchVersions[browsedMinorVer].length; j++) {

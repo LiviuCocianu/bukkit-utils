@@ -1,16 +1,12 @@
 package io.github.idoomful.bukkitutils.statics;
 
 import com.cryptomorin.xseries.ReflectionUtils;
-import com.sk89q.worldguard.bukkit.WorldGuardPlugin;
-import com.sk89q.worldguard.protection.flags.DefaultFlag;
-import com.sk89q.worldguard.protection.flags.StateFlag;
-import com.sk89q.worldguard.protection.managers.RegionManager;
-import com.sk89q.worldguard.protection.regions.ProtectedRegion;
 import org.bukkit.Bukkit;
+import org.bukkit.Chunk;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.enchantments.Enchantment;
-import org.bukkit.entity.Animals;
+import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
@@ -19,7 +15,12 @@ import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
 
 import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class EntityUtils {
     enum Damage {
@@ -206,43 +207,88 @@ public class EntityUtils {
     }
 
     /**
-     * Checks if the specified entity can be damaged (if they are protected by WorldGuard).
-     * @param entity The entity to be checked
+     * Gets any living entity the player is looking at in a certain radius
+     *
+     * @param player Player who is looking
+     * @param radius Checking radius relative to player in all directions
+     * @return The looked-at entity, or null if none
      */
-    public static boolean canBeDamaged(LivingEntity entity) {
-        RegionManager rm = WorldGuardPlugin.inst().getRegionManager(entity.getWorld());
+    public static LivingEntity getLookedAtEntity(Player player, float radius, boolean excludeNPCs) {
+        for(final Entity entity : player.getNearbyEntities(radius, radius, radius)) {
+            if(excludeNPCs && entity.hasMetadata("NPC")) continue;
 
-        if (rm.getApplicableRegions(entity.getLocation()).getRegions().isEmpty()) {
-            return !entity.hasMetadata("NPC");
-        } else {
-            for (ProtectedRegion reg : rm.getApplicableRegions(entity.getLocation()).getRegions()) {
-                if (entity instanceof Animals && reg.getFlag(DefaultFlag.DAMAGE_ANIMALS) == StateFlag.State.DENY)
-                    return false;
-                if (entity instanceof Player && reg.getFlag(DefaultFlag.PVP) == StateFlag.State.DENY) return false;
-                if (entity instanceof Player && reg.getFlag(DefaultFlag.INVINCIBILITY) == StateFlag.State.ALLOW)
-                    return false;
-                return !entity.hasMetadata("NPC");
+            if(entity instanceof LivingEntity) {
+                LivingEntity en = (LivingEntity) entity;
+
+                final Location eye = player.getEyeLocation();
+                final Vector toEntity = en.getEyeLocation().toVector().subtract(eye.toVector());
+                final double dot = toEntity.normalize().dot(eye.getDirection());
+
+                final Vector toEntity2 = en.getLocation().add(0, 1, 0).toVector().subtract(eye.toVector());
+                final double dot2 = toEntity2.normalize().dot(eye.getDirection());
+
+                final Vector toEntity3 = en.getLocation().add(0, 0.5, 0).toVector().subtract(eye.toVector());
+                final double dot3 = toEntity3.normalize().dot(eye.getDirection());
+
+                if(dot > 0.99D || dot2 > 0.99D || dot3 > 0.99D) return en;
             }
         }
 
-        return false;
+        return null;
     }
 
     /**
-     * Damage an entity, checking if they can be damaged first (if they are protected by WorldGuard)
-     * @param entity The entity to be affected
-     * @param amount Damage amount
+     * Gets all entities for the chunk of the specified location
+     *
+     * @param at Location inside of the targeted chunk
+     * @return List of all entities in chunk
      */
-    public static void damageEntity(LivingEntity entity, double amount) {
-        if(canBeDamaged(entity)) entity.damage(amount);
+    public static List<Entity> getChunkEntities(Location at) {
+        return new ArrayList<>(Arrays.asList(at.getChunk().getEntities()));
     }
 
     /**
-     * Set entity on fire, checking if they can be damaged first (if they are protected by WorldGuard)
-     * @param entity
-     * @param ticks
+     * Gets all living entities for the chunk of the specified location
+     *
+     * @param at Location inside of the targeted chunk
+     * @return List of all living entities in chunk
      */
-    public static void burnEntity(LivingEntity entity, int ticks) {
-        if(canBeDamaged(entity)) entity.setFireTicks(ticks);
+    public static List<LivingEntity> getLivingChunkEntities(Location at) {
+        return Stream.of(at.getChunk().getEntities())
+                .filter(en -> en instanceof LivingEntity)
+                .map(LivingEntity.class::cast)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Gets a list of chunks in a 2x2 radius from the player's location
+     *
+     * @param player Target player
+     * @param radius Chunk radius around player. A radius of 1 is the chunk
+     *               the player is in
+     * @param includeCenter If radius is 1 and includeCenter is false, an empty list will be returned
+     * @return List of surrounding chunks, including the center
+     */
+    public static List<Chunk> chunksAroundPlayer(Player player, int radius, boolean includeCenter) {
+        final List<Integer> offset = new ArrayList<>();
+        final int processedRadius = Math.max(radius - 1, 0);
+
+        for(int i = -processedRadius; i <= processedRadius; i++)
+            offset.add(i);
+
+        final int baseX = player.getLocation().getChunk().getX();
+        final int baseZ = player.getLocation().getChunk().getZ();
+
+        List<Chunk> chunksAroundPlayer = new ArrayList<>();
+
+        for(int x : offset) {
+            for(int z : offset) {
+                Chunk chunk = player.getWorld().getChunkAt(baseX + x, baseZ + z);
+                if(!includeCenter && (x == baseX && z == baseZ)) continue;
+                chunksAroundPlayer.add(chunk);
+            }
+        }
+
+        return chunksAroundPlayer;
     }
 }

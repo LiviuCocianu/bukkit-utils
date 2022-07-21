@@ -10,6 +10,8 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
 
 import java.util.*;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /*
  * How to use:
@@ -37,22 +39,47 @@ public class InventoryBuilder {
 	private final Map<String, ItemStack> symbolMatching = new HashMap<>();
     private final FileConfiguration source;
 	private Inventory inventory;
+	private final String configInvName;
 
 	private PlayerInventory playerInventory;
 	private Inventory playerInv;
 	private final boolean isPlayerInv;
+
+	private InventoryBuilder() {
+        this.inventory = null;
+        this.source = null;
+        this.configInvName = "";
+        isPlayerInv = false;
+    }
 	
-	public InventoryBuilder(Inventory inventory, FileConfiguration source) {
+	public InventoryBuilder(Inventory inventory, FileConfiguration source, String configInvName) {
 		this.inventory = inventory;
 		this.source = source;
+		this.configInvName = configInvName;
 		isPlayerInv = false;
 	}
 
-	public InventoryBuilder(PlayerInventory playerInventory, FileConfiguration source) {
+	public InventoryBuilder(PlayerInventory playerInventory, FileConfiguration source, String configInvName) {
 	    this.playerInventory = playerInventory;
 	    this.source = source;
+	    this.configInvName = configInvName;
 	    playerInv = Bukkit.createInventory(null, 9 * 4, "");
 	    isPlayerInv = true;
+    }
+
+    public void build(Player player) {
+	    setConfigItemList(player);
+	    setConfigItemArrangement();
+    }
+
+    public void alterItemStrings(Player player, Function<String, String> alterFunction) {
+        setConfigItemList(player);
+	    final List<ItemStack> items = getStringItems().stream()
+                .map(str -> ItemBuilder.build(alterFunction.apply(str)))
+                .map(ItemStack.class::cast)
+                .collect(Collectors.toList());
+
+	    overrideAddedItems(items);
     }
 	
 	public void setItems(String ... symbols) {
@@ -71,9 +98,9 @@ public class InventoryBuilder {
 		symbolMatching.clear();
 	}
 
-    public void setConfigItemArrangement(String inventoryName) {
+    public void setConfigItemArrangement() {
         int index = 0;
-        List<String> arrangements = source.getStringList("inventories." + inventoryName + ".layout");
+        List<String> arrangements = source.getStringList("inventories." + configInvName + ".layout");
 
         for(String row : arrangements) {
             if(index >= (isPlayerInv ? playerInv.getSize() : inventory.getSize())) {
@@ -98,10 +125,10 @@ public class InventoryBuilder {
         symbolMatching.put(symbol, item);
     }
 
-    public void setConfigItemList(String inventoryName, Player player) {
-        ArrayList<String> symbols = new ArrayList<>(source.getConfigurationSection("inventories." + inventoryName + ".items").getKeys(false));
+    public void setConfigItemList(Player player) {
+        ArrayList<String> symbols = new ArrayList<>(source.getConfigurationSection("inventories." + configInvName + ".items").getKeys(false));
         List<String> items = new ArrayList<>();
-        symbols.forEach(s -> items.add(s + " " + source.getString("inventories." + inventoryName + ".items." + s)));
+        symbols.forEach(s -> items.add(s + " " + source.getString("inventories." + configInvName + ".items." + s)));
 
         for(String item : items) {
             final String symbol = item.split(" ")[0];
@@ -153,6 +180,14 @@ public class InventoryBuilder {
         }
 
         symbolMatching.clear();
+    }
+
+    public List<String> getStringItems() {
+	    final List<String> items = new ArrayList<>();
+        final List<String> symbols = new ArrayList<>(source.getConfigurationSection("inventories." + configInvName + ".items").getKeys(false));
+	    for(String s : symbols)
+            items.add(source.getString("inventories." + configInvName + ".items." + s));
+        return items;
     }
 
 	public Inventory getInventory() {
