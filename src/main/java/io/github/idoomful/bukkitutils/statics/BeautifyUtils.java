@@ -14,7 +14,6 @@ import xyz.xenondevs.particle.data.texture.BlockTexture;
 import xyz.xenondevs.particle.data.texture.ItemTexture;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class BeautifyUtils {
@@ -89,6 +88,8 @@ public class BeautifyUtils {
      * @param pattern The sound pattern
      */
     public static void playSoundSimple(JavaPlugin main, Player player, String pattern) {
+        if(pattern.isEmpty()) return;
+
         final String[] args = pattern.split(" ");
 
         final Sound sound = validateSoundEnum(args[0]);
@@ -121,6 +122,8 @@ public class BeautifyUtils {
      * @param pattern The sound pattern
      */
     public static void playSound(JavaPlugin main, Player player, String pattern) {
+        if(pattern.isEmpty()) return;
+
         final String[] args = pattern.split(" ");
 
         final Sound sound = validateSoundEnum(args[0]);

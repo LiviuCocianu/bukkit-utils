@@ -74,6 +74,22 @@ public class ConfigManager<T extends JavaPlugin> {
         plugin.getLogger().info("Configuration has been reloaded.");
     }
 
+    public void reloadConfig(String name) {
+        final File configFile = files.get(name).getKey();
+        final FileConfiguration configYAML = files.get(name).getValue();
+
+        if (!configFile.exists()) {
+            addConfigurationFile(name);
+            plugin.getLogger().info(name + "'.yml' was not found, recreating default file...");
+        } else {
+            try {
+                configYAML.load(configFile);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
     /**
      * Get a configuration file by name.
      * @param name The name of the file. You don't need to specify the .yml at the end
@@ -81,6 +97,10 @@ public class ConfigManager<T extends JavaPlugin> {
      */
     public FileConfiguration getFile(String name) {
         return files.get(name).getValue();
+    }
+
+    public File getSource(String name) {
+        return files.get(name).getKey();
     }
 
     public boolean fileExists(String name) {

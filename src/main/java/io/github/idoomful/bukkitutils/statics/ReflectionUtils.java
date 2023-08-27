@@ -10,31 +10,12 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class ReflectionUtils {
-
-    /*
-     * The server version string to location NMS & OBC classes
-     */
     private static String versionString;
 
-    /*
-     * Cache of NMS classes that we've searched for
-     */
-    private static Map<String, Class<?>> loadedNMSClasses = new HashMap<String, Class<?>>();
-
-    /*
-     * Cache of OBS classes that we've searched for
-     */
-    private static Map<String, Class<?>> loadedOBCClasses = new HashMap<String, Class<?>>();
-
-    /*
-     * Cache of methods that we've found in particular classes
-     */
-    private static Map<Class<?>, Map<String, Method>> loadedMethods = new HashMap<Class<?>, Map<String, Method>>();
-
-    /*
-     * Cache of fields that we've found in particular classes
-     */
-    private static Map<Class<?>, Map<String, Field>> loadedFields = new HashMap<Class<?>, Map<String, Field>>();
+    private static final Map<String, Class<?>> loadedNMSClasses = new HashMap<>();
+    private static final Map<String, Class<?>> loadedOBCClasses = new HashMap<>();
+    private static final Map<Class<?>, Map<String, Method>> loadedMethods = new HashMap<>();
+    private static final Map<Class<?>, Map<String, Field>> loadedFields = new HashMap<>();
 
     /**
      * Gets the version string for NMS & OBC class paths
@@ -81,7 +62,7 @@ public class ReflectionUtils {
      * @param obcClassName the path to the class
      * @return the found class at the specified path
      */
-    public synchronized static Class<?> getOBCClass(String obcClassName) {
+    public static Class<?> getOBCClass(String obcClassName) {
         if (loadedOBCClasses.containsKey(obcClassName)) {
             return loadedOBCClasses.get(obcClassName);
         }
@@ -198,6 +179,20 @@ public class ReflectionUtils {
             fields.put(fieldName, null);
             loadedFields.put(clazz, fields);
             return null;
+        }
+    }
+
+    public static void sendPacket(Player p, Object packet) {
+        try {
+            Object nmsPlayer = getOBCClass("entity.CraftPlayer").getMethod("getHandle").invoke(p);
+
+            Field fieldCon = nmsPlayer != null ? nmsPlayer.getClass().getDeclaredField("playerConnection") : null;
+            Object nmsCon = fieldCon != null ? fieldCon.get(nmsPlayer) : null;
+
+            Method sendPacket = nmsCon.getClass().getMethod("sendPacket", getNMSClass("Packet"));
+            sendPacket.invoke(nmsCon,packet);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 }

@@ -46,19 +46,9 @@
                             <relocations>
                                 <relocation>
                                     <pattern>io.github.bananapuncher714.nbteditor</pattern>
-                                    <!-- Replace this with your package! -->
-                                    <shadedPattern>io.github.idoomful.bukkitutils</shadedPattern>
+                                    <shadedPattern>io.github.idoomful.nbteditor</shadedPattern>
                                 </relocation>
                             </relocations>
-
-                            <filters>
-                                <filter>
-                                    <artifact>com.github.cryptomorin:XSeries</artifact>
-                                    <includes>
-                                        <include>com/cryptomorin/xseries/ReflectionUtils.java</include>
-                                    </includes>
-                                </filter>
-                            </filters>
                         </configuration>
                     </execution>
                 </executions>
@@ -132,11 +122,11 @@
             <artifactId>particle</artifactId>
             <version>1.6.4</version>
         </dependency>
-        <dependency>
+        <!--<dependency>
             <groupId>com.github.cryptomorin</groupId>
             <artifactId>XSeries</artifactId>
             <version>8.3.0</version>
-        </dependency>
+        </dependency>-->
         <dependency>
             <groupId>me.clip</groupId>
             <artifactId>placeholderapi</artifactId>

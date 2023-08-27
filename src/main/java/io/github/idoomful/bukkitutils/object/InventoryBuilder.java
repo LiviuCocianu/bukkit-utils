@@ -1,14 +1,18 @@
 package io.github.idoomful.bukkitutils.object;
 
 import io.github.idoomful.bukkitutils.statics.ItemBuilder;
+import io.github.idoomful.bukkitutils.statics.TextUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.InventoryHolder;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.PlayerInventory;
+import org.jetbrains.annotations.NotNull;
 
+import javax.annotation.Nullable;
 import java.util.*;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -52,12 +56,19 @@ public class InventoryBuilder {
         isPlayerInv = false;
     }
 	
-	public InventoryBuilder(Inventory inventory, FileConfiguration source, String configInvName) {
-		this.inventory = inventory;
+	public InventoryBuilder(FileConfiguration source, String configInvName) {
+        this.inventory = null;
 		this.source = source;
 		this.configInvName = configInvName;
 		isPlayerInv = false;
 	}
+
+    public InventoryBuilder(Inventory inv, FileConfiguration source, String configInvName) {
+        this.inventory = inv;
+        this.source = source;
+        this.configInvName = configInvName;
+        isPlayerInv = false;
+    }
 
 	public InventoryBuilder(PlayerInventory playerInventory, FileConfiguration source, String configInvName) {
 	    this.playerInventory = playerInventory;
@@ -67,19 +78,35 @@ public class InventoryBuilder {
 	    isPlayerInv = true;
     }
 
-    public void build(Player player) {
-	    setConfigItemList(player);
+    public Inventory build(@Nullable InventoryHolder holder, @Nullable Player player, @Nullable Function<String, String> alterItemStrings) {
+        int rows = InventoryBuilder.getRowCount(source, configInvName);
+        inventory = Bukkit.createInventory(holder, rows * 9, InventoryBuilder.getTitle(source, configInvName));
+
+	    setConfigItemList(player, alterItemStrings);
 	    setConfigItemArrangement();
+
+	    return inventory;
     }
 
-    public void alterItemStrings(Player player, Function<String, String> alterFunction) {
-        setConfigItemList(player);
-	    final List<ItemStack> items = getStringItems().stream()
-                .map(str -> ItemBuilder.build(alterFunction.apply(str)))
-                .map(ItemStack.class::cast)
-                .collect(Collectors.toList());
+    public void build(@Nullable Player player, @Nullable Function<String, String> alterItemStrings) {
+        setConfigItemList(player, alterItemStrings);
+        setConfigItemArrangement();
+    }
 
-	    overrideAddedItems(items);
+    public Inventory getInventory() {
+        return isPlayerInv ? playerInv : inventory;
+    }
+
+    public void setInventory(Inventory inv) {
+	    this.inventory = inv;
+    }
+
+    public static int getRowCount(FileConfiguration source, String inventoryID) {
+	    return source.getStringList("inventories." + inventoryID + ".layout").size();
+    }
+
+    public static String getTitle(FileConfiguration source, String inventoryID) {
+        return TextUtils.color(source.getString("inventories." + inventoryID + ".title"));
     }
 	
 	public void setItems(String ... symbols) {
@@ -98,7 +125,7 @@ public class InventoryBuilder {
 		symbolMatching.clear();
 	}
 
-    public void setConfigItemArrangement() {
+    private void setConfigItemArrangement() {
         int index = 0;
         List<String> arrangements = source.getStringList("inventories." + configInvName + ".layout");
 
@@ -125,14 +152,15 @@ public class InventoryBuilder {
         symbolMatching.put(symbol, item);
     }
 
-    public void setConfigItemList(Player player) {
-        ArrayList<String> symbols = new ArrayList<>(source.getConfigurationSection("inventories." + configInvName + ".items").getKeys(false));
-        List<String> items = new ArrayList<>();
+    private void setConfigItemList(@Nullable Player player, @Nullable Function<String, String> alterItemStrings) {
+        final ArrayList<String> symbols = new ArrayList<>(source.getConfigurationSection("inventories." + configInvName + ".items").getKeys(false));
+        final List<String> items = new ArrayList<>();
         symbols.forEach(s -> items.add(s + " " + source.getString("inventories." + configInvName + ".items." + s)));
 
         for(String item : items) {
             final String symbol = item.split(" ")[0];
             String itemString = item.substring(item.indexOf(item.split(" ")[1]));
+            if(alterItemStrings != null) itemString = alterItemStrings.apply(itemString);
 
             if(player != null) itemString = itemString.replace("$player$", player.getName());
             final ItemStack is = ItemBuilder.build(itemString);
@@ -190,10 +218,6 @@ public class InventoryBuilder {
         return items;
     }
 
-	public Inventory getInventory() {
-	    return isPlayerInv ? playerInv : inventory;
-    }
-
     public List<ItemStack> getAddedItems() {
 	    return new ArrayList<>(symbolMatching.values());
     }
@@ -206,7 +230,7 @@ public class InventoryBuilder {
         }
     }
 
-    public void setHotbar() {
+    private void setHotbar() {
 	    if(!isPlayerInv) return;
 
 	    List<ItemStack> hotbar = Arrays.asList(playerInv.getContents()).subList(27, 36);
@@ -219,7 +243,7 @@ public class InventoryBuilder {
 	    playerInventory.setContents(modifiedContents);
     }
 
-    public void setStorage() {
+    private void setStorage() {
         if(!isPlayerInv) return;
 
         List<ItemStack> hotbar = Arrays.asList(playerInv.getContents()).subList(0, 27);

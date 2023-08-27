@@ -1,6 +1,7 @@
 package io.github.idoomful.bukkitutils.statics;
 
 import io.github.idoomful.bukkitutils.object.Procedure;
+import org.apache.commons.lang.WordUtils;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.entity.Player;
@@ -145,5 +146,25 @@ public class ItemUtils {
         } else if (e.getCurrentItem() != null && e.getCurrentItem().getType() != Material.AIR) {
             clickedButNoCursor.proceed();
         }
+    }
+
+    public static String getItemName(ItemStack item) {
+        String itemName;
+
+        if(item.getType() == Material.AIR) return null;
+        if(item.hasItemMeta() && item.getItemMeta() != null) {
+            if(!item.getItemMeta().hasDisplayName()) {
+                if(item.getItemMeta().hasLocalizedName()) itemName = item.getItemMeta().getLocalizedName();
+                else itemName = WordUtils.capitalizeFully(item.getType().name().toLowerCase().replace("_", " "));
+            } else
+                itemName = item.getItemMeta().getDisplayName();
+
+            if(item.getItemMeta().hasEnchants())
+                itemName = "&b" + itemName;
+        } else {
+            itemName = WordUtils.capitalizeFully(item.getType().name().toLowerCase().replace("_", " "));
+        }
+
+        return itemName;
     }
 }

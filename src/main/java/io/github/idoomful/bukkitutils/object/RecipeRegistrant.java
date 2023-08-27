@@ -18,6 +18,10 @@ public class RecipeRegistrant {
     private final FileConfiguration source;
     private final HashMap<String, Recipe> recipes = new HashMap<>();
 
+    private RecipeRegistrant() {
+        source = null;
+    }
+
     /**
      * Once initialized, it will register all specified recipes in the provided source
      * @param source The configuration file where the recipes are
@@ -37,7 +41,6 @@ public class RecipeRegistrant {
                     ItemStack recipeItem = recipe.getMatrix()[i];
                     ItemStack eventItem = e.getInventory().getMatrix()[i];
 
-                    //if(eventItem == null) continue;
                     if(recipeItem.getType() == Material.AIR) continue;
 
                     if(!recipeItem.equals(eventItem)) {
@@ -46,9 +49,8 @@ public class RecipeRegistrant {
                     }
                 }
 
-                if(pass) {
+                if(pass)
                     e.getInventory().setResult(recipe.getResult());
-                }
             }
         });
 

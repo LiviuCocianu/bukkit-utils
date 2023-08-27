@@ -90,6 +90,48 @@ public class MaterialUtils {
         return blocks;
     }
 
+    /**
+     * Checks if the material is a block that can be stood on. Material#isSolid returns some blocks
+     * that cannot be stood on, so it's not a reliable method of checking
+     *
+     * @param material The material of the block
+     * @return Whether it can be stood on or not
+     */
+    public static boolean canStandOn(Material material) {
+        if(VersionUtils.usesVersionBetween("1.1.x", "1.12.x")) {
+            switch(material.name()) {
+                case "TRAP_DOOR":
+                case "WOODEN_DOOR":
+                case "WALL_SIGN":
+                case "SIGN_POST":
+                case "STONE_PLATE":
+                case "WOOD_PLATE":
+                case "GOLD_PLATE":
+                case "WALL_BANNER":
+                case "STANDING_BANNER":
+                    return false;
+            }
+        } else {
+            if(material.name().contains("TRAPDOOR")
+                    || material.name().contains("SIGN")
+                    || material.name().contains("_PLATE")
+                    || material.name().contains("BANNER"))
+                return false;
+        }
+
+        switch (material) {
+            case SPRUCE_DOOR:
+            case BIRCH_DOOR:
+            case JUNGLE_DOOR:
+            case ACACIA_DOOR:
+            case DARK_OAK_DOOR:
+            case IRON_TRAPDOOR:
+                return false;
+            default:
+                return material.isSolid();
+        }
+    }
+
     static {
         for(Material material : Material.values()) {
             postItems.put(material.name().toLowerCase(), material);

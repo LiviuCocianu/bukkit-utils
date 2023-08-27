@@ -1,9 +1,11 @@
 package io.github.idoomful.bukkitutils.statics;
 
-import com.cryptomorin.xseries.ReflectionUtils;
 import me.clip.placeholderapi.PlaceholderAPI;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 
 import java.lang.reflect.InvocationTargetException;
@@ -12,6 +14,7 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class TextUtils {
     public enum ColorType {
@@ -95,7 +98,7 @@ public class TextUtils {
      * @param player The player which the placeholders will be applied relative to
      * @param input The string
      */
-    public static String placeholder(Player player, String input) {
+    public static String placeholder(OfflinePlayer player, String input) {
         if(Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && player != null)
             return TextUtils.color(PlaceholderAPI.setPlaceholders(player, input));
         else return color(input);
@@ -107,13 +110,13 @@ public class TextUtils {
      * @param player The player which the placeholders will be applied relative to
      * @param input The string
      */
-    public static List<String> placeholder(Player player, List<String> input) {
+    public static List<String> placeholder(OfflinePlayer player, List<String> input) {
         if(Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && player != null)
             return TextUtils.color(PlaceholderAPI.setPlaceholders(player, input));
         else return color(input);
     }
 
-    public static String colorlessPlaceholder(Player player, String input) {
+    public static String colorlessPlaceholder(OfflinePlayer player, String input) {
         if(Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI") && player != null)
             return PlaceholderAPI.setPlaceholders(player, input);
         else return input;
@@ -131,26 +134,30 @@ public class TextUtils {
     }
 
     /**
-     * Sends action bar text to the specified player using a reflection packet
+     * Sends action bar text to the specified player
      * @param player The target
      * @param message The message to be sent
      */
     public static void sendActionText(Player player, String message) {
-        try {
-            Class<?> playOutChat = ReflectionUtils.getNMSClass("PacketPlayOutChat");
-            Class<?> ichat = ReflectionUtils.getNMSClass("IChatBaseComponent");
-            Class<?> chatComp = ReflectionUtils.getNMSClass("ChatMessage");
+        if(VersionUtils.usesVersionBetween("1.4.x", "1.9.x")) {
+            try {
+                Class<?> playOutChat = ReflectionUtils.getNMSClass("PacketPlayOutChat");
+                Class<?> ichat = ReflectionUtils.getNMSClass("IChatBaseComponent");
+                Class<?> chatComp = ReflectionUtils.getNMSClass("ChatMessage");
 
-            Object baseComp = chatComp.getConstructor(String.class, Object[].class).newInstance(message, new Object[] {});
-            Object packet = playOutChat.getConstructor(ichat, byte.class).newInstance(baseComp, (byte) 2);
+                Object baseComp = chatComp.getConstructor(String.class, Object[].class).newInstance(message, new Object[] {});
+                Object packet = playOutChat.getConstructor(ichat, byte.class).newInstance(baseComp, (byte) 2);
 
-            Class<?> craftPlayer = ReflectionUtils.getCraftClass("entity.CraftPlayer");
-            Class<?> packetClass = ReflectionUtils.getNMSClass("Packet");
-            Object handle = craftPlayer.cast(player).getClass().getMethod("getHandle").invoke(craftPlayer.cast(player));
-            Object conObj = handle.getClass().getField("playerConnection").get(handle);
-            conObj.getClass().getMethod("sendPacket", packetClass).invoke(conObj, packet);
-        } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchFieldException e) {
-            e.printStackTrace();
+                Class<?> craftPlayer = ReflectionUtils.getOBCClass("entity.CraftPlayer");
+                Class<?> packetClass = ReflectionUtils.getNMSClass("Packet");
+                Object handle = craftPlayer.cast(player).getClass().getMethod("getHandle").invoke(craftPlayer.cast(player));
+                Object conObj = handle.getClass().getField("playerConnection").get(handle);
+                conObj.getClass().getMethod("sendPacket", packetClass).invoke(conObj, packet);
+            } catch (NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException | NoSuchFieldException e) {
+                e.printStackTrace();
+            }
+        } else {
+            player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(message));
         }
     }
 
@@ -316,163 +323,52 @@ public class TextUtils {
         return segments;
     }
 
+    public static List<String> segmentByStrings(String text, String[] strings) {
+        return segmentByStrings(text, Stream.of(strings).collect(Collectors.toList()));
+    }
+
     public static List<String> segmentByString(String text, String separator) {
         return segmentByStrings(text, Collections.singletonList(separator));
-    }
-
-    /**
-     * Alters standard and hex color codes in a string so they can't be converted into colors
-     * through methods like ChatColor#translateAlternateColorCodes
-     *
-     * @param text String with color codes in it
-     * @return Jammed text
-     */
-    public static String jamColorCodes(final String text) {
-        return jamHexColorCodes(jamStandardColorCodes(text));
-    }
-
-    /**
-     * Undo string alterations to both standard and hex color codes
-     *
-     * @param text String with altered color codes in it
-     * @return Unjammed text
-     */
-    public static String unjamColorCodes(final String text) {
-        return unjamHexColorCodes(unjamStandardColorCodes(text));
-    }
-
-    /**
-     * Alters standard color codes in a string so they can't be converted into colors
-     * through methods like ChatColor#translateAlternateColorCodes
-     *
-     * @param text String with color codes in it
-     * @return Jammed text
-     */
-    public static String jamStandardColorCodes(final String text) {
-        String output = text;
-
-        final Pattern stdPat = Pattern.compile("(&)([0-9a-fk-or])");
-        Matcher stdMat = stdPat.matcher(output);
-
-        while (stdMat.find()) {
-            final String half1 = stdMat.group(1);
-            final String half2 = stdMat.group(2);
-
-            output = output.replaceFirst(Pattern.quote(stdMat.group()), half1 + ";" + half2);
-            stdMat = stdPat.matcher(output);
-        }
-
-        return output;
-    }
-
-    /**
-     * Alters hex color codes in a string so they can't be converted into colors
-     * through methods like ChatColor#translateAlternateColorCodes
-     *
-     * @param text String with color codes in it
-     * @return Jammed text
-     */
-    public static String jamHexColorCodes(final String text) {
-        String output = text;
-
-        final Pattern hexPat = Pattern.compile("(\\[#)([a-fA-F0-9]{6}])");
-        Matcher hexMat = hexPat.matcher(output);
-
-        while (hexMat.find()) {
-            final String half1 = hexMat.group(1);
-            final String half2 = hexMat.group(2);
-
-            output = output.replaceFirst(Pattern.quote(hexMat.group()), half1 + ";" + half2);
-            hexMat = hexPat.matcher(output);
-        }
-
-        return output;
-    }
-
-    /**
-     * Undo string alterations to standard color codes
-     *
-     * @param text String with altered color codes in it
-     * @return Unjammed text
-     */
-    public static String unjamStandardColorCodes(final String text) {
-        String output = text;
-
-        final Pattern stdPat = Pattern.compile("(&);([0-9a-fk-or])");
-        Matcher stdMat = stdPat.matcher(output);
-
-        while (stdMat.find()) {
-            final String match = stdMat.group();
-
-            output = output.replaceFirst(Pattern.quote(match), match.replace(";", ""));
-            stdMat = stdPat.matcher(output);
-        }
-
-        return output;
-    }
-
-    /**
-     * Undo string alterations to hex color codes
-     *
-     * @param text String with altered color codes in it
-     * @return Unjammed text
-     */
-    public static String unjamHexColorCodes(final String text) {
-        String output = text;
-
-        final Pattern hexPat = Pattern.compile("(\\[#);([a-fA-F0-9]{6}])");
-        Matcher hexMat = hexPat.matcher(output);
-
-        while (hexMat.find()) {
-            final String match = hexMat.group();
-
-            output = output.replaceFirst(Pattern.quote(match), match.replace(";", ""));
-            hexMat = hexPat.matcher(output);
-        }
-
-        return output;
-    }
-
-    public static List<String> findAllColorCodes(String input) {
-        final List<String> codes = new ArrayList<>();
-
-        final Pattern pat = Pattern.compile("(\\[?#[a-fA-F0-9]{6}]?)|([&§][0-9a-fk-or])");
-        final Matcher mat = pat.matcher(input);
-
-        while(mat.find())
-            codes.add(mat.group());
-
-        return codes;
-    }
-
-    public static String getLastColorCodeCluster(String input) {
-        final List<String> colorCodes = TextUtils.findAllColorCodes(input);
-        Collections.reverse(colorCodes);
-        final Deque<String> res = new LinkedList<>();
-
-        for(String code : colorCodes) {
-            if(code.matches("[&§][k-or]")) {
-                res.addFirst(code);
-            } else {
-                res.addFirst(code);
-                break;
-            }
-        }
-
-        final StringBuilder out = new StringBuilder();
-        for(String code : res) out.append(code);
-
-        return out.toString();
     }
 
     public static String escapeMetaCharacters(String inputString){
         final String[] metaCharacters = {"\\","^","$","{","}","[","]","(",")",".","*","+","?","|","<",">","-","&","%"};
 
-        for (int i = 0 ; i < metaCharacters.length ; i++){
-            if(inputString.contains(metaCharacters[i])){
-                inputString = inputString.replace(metaCharacters[i],"\\"+metaCharacters[i]);
+        for (String metaCharacter : metaCharacters) {
+            if (inputString.contains(metaCharacter)) {
+                inputString = inputString.replace(metaCharacter, "\\" + metaCharacter);
             }
         }
+
         return inputString;
+    }
+
+    public static void executeConfigCommand(Player player, String message) {
+        if(message.toLowerCase().startsWith("[message] ")) {
+            final List<String> list = TextUtils.segmentByString(message, "[message] ");
+
+            if(list.size() < 2) return;
+
+            final String msg = list.get(1);
+            final List<String> segments = TextUtils.segmentByString(msg, "{emptyline}");
+
+            for(String str : segments) {
+                if(str.equals("{emptyline}")) {
+                    player.sendMessage("");
+                } else {
+                    player.sendMessage(TextUtils.placeholder(player, TextUtils.color(str)));
+                }
+            }
+        } else if(message.toLowerCase().startsWith("[console] ")) {
+            final List<String> list = TextUtils.segmentByString(message, "[console] ");
+
+            if(list.size() < 2) return;
+
+            final String cmd = list.get(1);
+
+            Bukkit.dispatchCommand(Bukkit.getConsoleSender(), TextUtils.colorlessPlaceholder(player, cmd));
+        } else {
+            Bukkit.dispatchCommand(player, TextUtils.colorlessPlaceholder(player, message));
+        }
     }
 }

@@ -3,10 +3,7 @@ package io.github.idoomful.bukkitutils.statics;
 import dev.dbassett.skullcreator.SkullCreator;
 import io.github.bananapuncher714.nbteditor.NBTEditor;
 import org.apache.commons.lang.WordUtils;
-import org.bukkit.Bukkit;
-import org.bukkit.Color;
-import org.bukkit.DyeColor;
-import org.bukkit.Material;
+import org.bukkit.*;
 import org.bukkit.attribute.Attribute;
 import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.block.banner.Pattern;
@@ -24,17 +21,13 @@ import org.bukkit.potion.PotionType;
 import java.util.*;
 
 public class ItemBuilder {
-    @SuppressWarnings("deprecation")
-    public static ItemStack build(String value) {
-        ItemStack result = new ItemStack(Material.STONE, 1);
-        String ID = "";
-        int attributeIndex = 0;
-        int totalAttributeCount = 0;
-        boolean setAttackDamage = false;
+    private static final Map<String, Enchantment> enchants = new LinkedHashMap<>();
+    private static String itemID = "";
+    private static int attributeIndex = 0;
+    private static int totalAttributeCount = 0;
+    private static boolean setAttackDamage = false;
 
-        String[] data = value.split(" ");
-
-        final Map<String, Enchantment> enchants = new LinkedHashMap<>();
+    static {
         enchants.put("protection", Enchantment.PROTECTION_ENVIRONMENTAL);
         enchants.put("fire_protection", Enchantment.PROTECTION_FIRE);
         enchants.put("feather_falling", Enchantment.PROTECTION_FALL);
@@ -84,449 +77,593 @@ public class ItemBuilder {
         if (!VersionUtils.usesVersionBetween("1.1.x", "1.15.x")) {
             enchants.put("soul_speed", Enchantment.SOUL_SPEED);
         }
+    }
 
-        for (String aData : data) {
-            // TODO Check for ID
-            if (aData.startsWith("id:")) {
-                String id = aData.substring(aData.indexOf(":") + 1);
+    public static ItemStack build(String value) {
+        ItemStack result = new ItemStack(Material.STONE, 1);
+        final List<String> tags = Arrays.asList(value.split(" "));
 
-                if (id.contains(":")) {
-                    String[] separate = id.split(":");
+        final OfflinePlayer player = tags.stream().anyMatch(tg -> tg.startsWith("player:"))
+                ? tags.stream()
+                .filter(tg -> tg.startsWith("player:"))
+                .map(tg -> Bukkit.getOfflinePlayer(tg.split(":")[1]))
+                .map(OfflinePlayer.class::cast)
+                .findFirst().orElse(null)
+                : null;
 
-                    id = separate[0];
-                    int damage = Integer.parseInt(separate[1]);
+        for (String tag : tags) {
+            final String newTag = player != null ? TextUtils.placeholder(player, tag) : tag;
 
-                    result.setType(MaterialUtils.getMaterialByID(id));
-
-                    try {
-                        if (damage > 9999) {
-                            result.setDurability((short) 1);
-                            continue;
-                        }
-                        result.setDurability((short) damage);
-
-                    } catch (NumberFormatException e) {
-                        result.setDurability((short) 1);
-                    }
-                } else {
-                    ID = id;
-
-                    if(ID.equalsIgnoreCase("splash_potion")) {
-                        result.setType(MaterialUtils.getMaterialByID("potion"));
-                    } else {
-                        result.setType(MaterialUtils.getMaterialByID(id));
-                    }
-                    continue;
-                }
-            }
-            // TODO Check for amount
-            if (aData.startsWith("amount:")) {
-                try {
-                    int amount = Integer.parseInt(aData.split(":")[1]);
-                    result.setAmount(Math.max(1, Math.min(amount, 64)));
-                } catch (NumberFormatException e) {
-                    result.setAmount(1);
-                }
+            if (tag.startsWith("id:")) {
+                setID(result, newTag);
+                continue;
             }
 
-            // TODO Check for "player"
-            if (aData.startsWith("player:") && (VersionUtils.usesVersionBetween("1.1.x", "1.12.x")
-                    ? result.getType().toString().equals("SKULL_ITEM")
-                    : result.getType().toString().equals("PLAYER_HEAD")
-            ) && (!VersionUtils.usesVersionBetween("1.1.x", "1.12.x") || result.getDurability() == 3)
-            ) {
-                String playername = aData.split(":")[1];
-
-                SkullMeta sm = (SkullMeta) result.getItemMeta();
-                assert sm != null;
-
-                if(VersionUtils.usesVersionBetween("1.1.x", "1.11.x")) sm.setOwner(playername);
-                else sm.setOwningPlayer(Bukkit.getOfflinePlayer(playername));
-
-                result.setItemMeta(sm);
+            if (tag.startsWith("amount:")) {
+                setAmount(result, tag);
+                continue;
             }
 
-            // TODO Check for "pattern"
-            if (aData.startsWith("pattern:") && result.getType().name().contains("BANNER")) {
-                String pattern = aData.split(":")[1];
-                String type = pattern.split(",")[0];
-                String color = pattern.split(",")[1];
-
-                BannerMeta bm = (BannerMeta) result.getItemMeta();
-                assert bm != null;
-
-                bm.addPattern(new Pattern(DyeColor.valueOf(color.toUpperCase()), PatternType.valueOf(type.toUpperCase())));
-
-                result.setItemMeta(bm);
+            if (tag.startsWith("name:")) {
+                setDisplayName(result, newTag);
+                continue;
             }
 
-            // TODO Check for "urlCode"
-            if((aData.startsWith("url-code:") || aData.startsWith("urlCode:"))
-                    && (VersionUtils.usesVersionBetween("1.1.x", "1.12.x")
-                    ? result.getType().toString().equals("SKULL_ITEM")
-                    : result.getType().toString().equals("PLAYER_HEAD")
-            ) && (!VersionUtils.usesVersionBetween("1.1.x", "1.12.x") || result.getDurability() == 3)
-            ) {
-                String code = aData.split(":")[1];
-
-                if(code.startsWith("ey")) result = SkullCreator.itemWithBase64(result, code);
-                else result = SkullCreator.itemWithUrl(result, code);
+            if (tag.startsWith("lore:")) {
+                setLore(result, newTag);
+                continue;
             }
 
-            // TODO Check for "color"
-            if (aData.startsWith("color:") && (result.getType().toString().contains("LEATHER"))) {
-                String[] colors = aData.split(":")[1].split(",");
-                LeatherArmorMeta lam = (LeatherArmorMeta) result.getItemMeta();
-                assert lam != null;
-
-                try {
-                    int red = Integer.parseInt(colors[0]);
-                    int green = Integer.parseInt(colors[1]);
-                    int blue = Integer.parseInt(colors[2]);
-
-                    try {
-                        lam.setColor(Color.fromRGB(red, green, blue));
-                        result.setItemMeta(lam);
-                    } catch (IllegalArgumentException e) {
-                        lam.setColor(Color.fromRGB(0, 0, 0));
-                        result.setItemMeta(lam);
-                    }
-
-                } catch (NumberFormatException e) {
-                    lam.setColor(Color.fromRGB(0, 0, 0));
-                    result.setItemMeta(lam);
-                }
+            if (tag.startsWith("effect:")) {
+                addEffect(result, tag, value);
+                continue;
             }
 
-            // TODO Check for name
-            if (aData.startsWith("name:")) {
-                ItemMeta im = result.getItemMeta();
-                assert im != null;
-
-                String name = aData.substring(aData.indexOf(":") + 1);
-                name = TextUtils.color(name.replace("_", " ").replace("{us}", "_"));
-
-                im.setDisplayName(name);
-                result.setItemMeta(im);
+            if((tag.startsWith("url-code:") || tag.startsWith("urlCode:"))) {
+                result = setUrlCode(result, tag);
+                continue;
             }
 
-            // TODO Check for lore
-            if (aData.startsWith("lore:")) {
-                List<String> lore = new ArrayList<>();
-                ItemMeta im = result.getItemMeta();
-                assert im != null;
-
-                if(aData.contains("|")) {
-                    String[] lines = aData.substring(aData.indexOf(":") + 1).split("\\|");
-
-                    for (String line : lines) {
-                        String action = line.replace("_", " ").replace("{us}", "_");
-                        lore.add(TextUtils.color(action));
-                    }
-                } else {
-                    final String line = aData.substring(aData.indexOf(":") + 1);
-                    lore.add(TextUtils.color(line.replace("_", " ").replace("{us}", "_")));
-                }
-
-                im.setLore(lore);
-                result.setItemMeta(im);
+            if (tag.startsWith("player:")) {
+                setSkullFromPlayerName(result, tag);
+                continue;
             }
 
-            // TODO Check for enchantments
-            if(aData.contains(":")) {
-                for (int n = 0; n < enchants.size(); n++) {
-                    String property = aData.split(":")[0];
-                    ItemMeta im = result.getItemMeta();
-                    assert im != null;
-
-                    final List<String> enchantIDs = new ArrayList<>(enchants.keySet());
-
-                    final String enchantID = enchantIDs.get(n);
-                    final Enchantment enchantment = enchants.get(enchantID);
-
-                    if (enchantID.equalsIgnoreCase(property)
-                            || (enchantID.replace("_", "").equalsIgnoreCase(property))
-                    ) {
-                        try {
-                            int level;
-                            if(aData.split(":").length < 2) level = 1;
-                            else level = Integer.parseInt(aData.split(":")[1]);
-
-                            im.addEnchant(enchantment, level, true);
-                            result.setItemMeta(im);
-                        } catch (NumberFormatException ignored) {}
-                    }
-                }
+            if (tag.startsWith("pattern:")) {
+                setBannerPattern(result, tag);
+                continue;
             }
 
-            // TODO Check for "hideFlags"
-            if (aData.equalsIgnoreCase("hide-flags") || aData.equalsIgnoreCase("hideFlags")) {
-                ItemMeta im = result.getItemMeta();
-                assert im != null;
-
-                im.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_DESTROYS,
-                        ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE);
-
-                if(!VersionUtils.usesVersionBetween("1.1.x", "1.15.x")) im.addItemFlags(ItemFlag.HIDE_DYE);
-
-                result.setItemMeta(im);
+            if (tag.startsWith("color:")) {
+                setArmorColor(result, tag);
+                continue;
             }
 
-            // TODO Check for "hideFlag"
-            if (aData.startsWith("hide-flag:") || aData.startsWith("hideFlag:")) {
-                ItemMeta im = result.getItemMeta();
-                assert im != null;
-                String flagStr = aData.split(":")[1];
-
-                try {
-                    if(!flagStr.startsWith("hide")) flagStr = "hide_" + flagStr;
-                    ItemFlag flag = ItemFlag.valueOf(flagStr.toUpperCase());
-                    im.addItemFlags(flag);
-
-                    result.setItemMeta(im);
-                } catch(IllegalArgumentException ia) {
-                    continue;
-                }
+            if (tag.equalsIgnoreCase("hide-flags") || tag.equalsIgnoreCase("hideFlags")) {
+                hideFlags(result);
+                continue;
             }
 
-            // TODO Check for "customModelData"
-            if (aData.startsWith("customModelData:") || aData.startsWith("custom-model-data:")) {
-                if(!VersionUtils.usesVersionBetween("1.1.x", "1.13.x")) {
-                    ItemMeta im = result.getItemMeta();
-                    assert im != null;
-
-                    try {
-                        int model = Integer.parseInt(aData.split(":")[1]);
-                        im.setCustomModelData(model);
-                        result.setItemMeta(im);
-                    } catch(NumberFormatException ignored) {}
-                }
+            if (tag.startsWith("hide-flag:") || tag.startsWith("hideFlag:")) {
+                hideFlag(result, tag);
+                continue;
             }
 
-            // TODO Check for "unbreakable"
-            if (aData.equalsIgnoreCase("unbreakable")) {
-                ItemMeta im = result.getItemMeta();
-                assert im != null;
-
-                if (!VersionUtils.usesVersionBetween("1.1.x", "1.8.x"))
-                    im.setUnbreakable(true);
-
-                result.setItemMeta(im);
-
-                if (VersionUtils.usesVersionBetween("1.1.x", "1.8.x"))
-                    result = NBTEditor.set(result, (byte) 1, "Unbreakable");
+            if (tag.startsWith("customModelData:") || tag.startsWith("custom-model-data:")) {
+                setCustomModelData(result, tag);
+                continue;
             }
 
-            // TODO Check for "nbt-string"
-            if (aData.startsWith("nbt-string:") || aData.startsWith("nbtString:")) {
-                if(aData.split(":").length < 3) continue;
-
-                String tag = aData.split(":")[1];
-                String string = aData.split(":")[2].replace("_", " ").replace("{us}", "_");
-
-                result = NBTEditor.set(result, string, tag);
+            if (tag.equalsIgnoreCase("unbreakable")) {
+                result = setUnbreakable(result);
+                continue;
             }
 
-            // TODO Check for "nbt-int"
-            if (aData.startsWith("nbt-int:") || aData.startsWith("nbtInt:")) {
-                if(aData.split(":").length < 3) continue;
-                String tag = aData.split(":")[1];
-
-                try {
-                    int integer = Integer.parseInt(aData.split(":")[2]);
-                    result = NBTEditor.set(result, integer, tag);
-                } catch(NumberFormatException ignored) {}
+            if (tag.startsWith("nbt-string:") || tag.startsWith("nbtString:")) {
+                result = setNBTString(result, tag);
+                continue;
             }
 
-            // TODO Check for "nbt-float"
-            if (aData.startsWith("nbt-float:") || aData.startsWith("nbtFloat:")) {
-                if(aData.split(":").length < 3) continue;
-                String tag = aData.split(":")[1];
-
-                try {
-                    float floating = Float.parseFloat(aData.split(":")[2]);
-                    result = NBTEditor.set(result, floating, tag);
-                } catch(NumberFormatException ignored) {}
+            if (tag.startsWith("nbt-byte:") || tag.startsWith("nbtByte:")) {
+                result = setNBTNumber(result, NBTNumber.BYTE, tag);
+                continue;
             }
 
-            // TODO Check for "nbt-double"
-            if (aData.startsWith("nbt-double:") || aData.startsWith("nbtDouble:")) {
-                if(aData.split(":").length < 3) continue;
-                String tag = aData.split(":")[1];
-
-                try {
-                    double doubl = Double.parseDouble(aData.split(":")[2]);
-                    result = NBTEditor.set(result, doubl, tag);
-                } catch(NumberFormatException ignored) {}
+            if (tag.startsWith("nbt-short:") || tag.startsWith("nbtShort:")) {
+                result = setNBTNumber(result, NBTNumber.SHORT, tag);
+                continue;
             }
 
-            // TODO Check for "attribute"
-            if(aData.startsWith("attribute:")) {
-                String val = aData.split(":")[1];
-                String newAtr = val.split("/")[0];
-                String atr = val.split("/")[0];
-
-                if(VersionUtils.usesVersionBetween("1.1.x", "1.15.x")) {
-                    atr = WordUtils.capitalizeFully(atr.replace("_", " "))
-                            .replace(" ", "");
-                    atr = (atr.charAt(0) + "").toLowerCase() + atr.substring(1);
-                }
-
-                float atrVal;
-
-                try {
-                    atrVal = Float.parseFloat(val.split("/")[1]);
-                } catch (NumberFormatException ne) {
-                    atrVal = 0;
-                }
-
-                int operation;
-
-                if(val.split("/").length <= 2) {
-                    operation = 0;
-                } else {
-                    try {
-                        operation = Integer.parseInt(val.split("/")[2]);
-                    } catch (NumberFormatException ne) {
-                        operation = 0;
-                    }
-                }
-
-                String slot = "mainhand";
-                boolean hasSlot = true;
-
-                if(val.split("/").length <= 3) {
-                    hasSlot = false;
-                } else {
-                    slot = val.split("/")[3];
-                }
-
-                if(!VersionUtils.usesVersionBetween("1.1.x", "1.12.x")) {
-                    ItemMeta im = result.getItemMeta();
-                    assert im != null;
-
-                    AttributeModifier.Operation op = operation == 0
-                            ? AttributeModifier.Operation.ADD_NUMBER
-                            : operation == 1 ? AttributeModifier.Operation.ADD_SCALAR
-                            : operation == 2 ? AttributeModifier.Operation.MULTIPLY_SCALAR_1
-                            : AttributeModifier.Operation.ADD_NUMBER;
-
-                    slot = "hand";
-
-                    if(hasSlot) {
-                        im.addAttributeModifier(Attribute.valueOf("GENERIC_" + newAtr.toUpperCase()),
-                                new AttributeModifier(
-                                        UUID.randomUUID(),
-                                        "GENERIC_" + newAtr.toUpperCase(),
-                                        atrVal,
-                                        op,
-                                        EquipmentSlot.valueOf(slot.toUpperCase())
-                                )
-                        );
-                    } else {
-                        im.addAttributeModifier(Attribute.valueOf("GENERIC_" + newAtr.toUpperCase()),
-                                new AttributeModifier("GENERIC_" + newAtr.toUpperCase(), atrVal, op));
-                    }
-
-                    result.setItemMeta(im);
-                    continue;
-                }
-
-                NBTEditor.NBTCompound compound = NBTEditor.getNBTCompound(result);
-
-                if(atr.equals("attackDamage")) setAttackDamage = true;
-
-                compound.set("generic." + atr, "tag", "AttributeModifiers", null, "AttributeName");
-                compound.set("generic." + atr, "tag", "AttributeModifiers", attributeIndex, "Name");
-                if(hasSlot) compound.set(slot, "tag", "AttributeModifiers", attributeIndex, "Slot");
-                compound.set(operation, "tag", "AttributeModifiers", attributeIndex, "Operation");
-                compound.set(atrVal, "tag", "AttributeModifiers", attributeIndex, "Amount");
-                compound.set(new int[] { 0, 0, 0, 0 }, "tag", "AttributeModifiers", attributeIndex % 2 == 0 ? 0 : 1, "UUID");
-                compound.set(99L, "tag", "AttributeModifiers", attributeIndex, "UUIDMost");
-                compound.set(77530600L, "tag", "AttributeModifiers", attributeIndex, "UUIDLeast");
-
-                attributeIndex++;
-
-                if(attributeIndex == totalAttributeCount && !setAttackDamage) {
-                    for(ToolDamage tooldmg : ToolDamage.values()) {
-                        if(result.getType().name().equals(tooldmg.name())) {
-                            compound.set("generic.attackDamage", "tag", "AttributeModifiers", null, "AttributeName");
-                            compound.set("generic.attackDamage", "tag", "AttributeModifiers", attributeIndex, "Name");
-                            compound.set("mainhand", "tag", "AttributeModifiers", attributeIndex, "Slot");
-                            compound.set(0, "tag", "AttributeModifiers", attributeIndex, "Operation");
-                            compound.set(tooldmg.get(), "tag", "AttributeModifiers", attributeIndex, "Amount");
-                            compound.set(new int[] { 0, 0, 0, 0 }, "tag", "AttributeModifiers", attributeIndex % 2 == 0 ? 0 : 1, "UUID");
-                            compound.set(99L, "tag", "AttributeModifiers", attributeIndex, "UUIDMost");
-                            compound.set(77530600L, "tag", "AttributeModifiers", attributeIndex, "UUIDLeast");
-
-                            attributeIndex++;
-                            break;
-                        }
-                    }
-                }
-
-                result = NBTEditor.getItemFromTag(compound);
+            if (tag.startsWith("nbt-int:") || tag.startsWith("nbtInt:")) {
+                result = setNBTNumber(result, NBTNumber.INTEGER, tag);
+                continue;
             }
 
-            // TODO Check for potion effects
-            if (aData.startsWith("effect:") && result.getType().equals(Material.POTION)) {
-                String[] v = aData.split("/");
-                String effect = v[0].split(":")[1];
-                String effectPower = v[1];
-                String effectDuration = v[2];
+            if (tag.startsWith("nbt-float:") || tag.startsWith("nbtFloat:")) {
+                result = setNBTNumber(result, NBTNumber.FLOAT, tag);
+                continue;
+            }
 
-                short power;
-                int duration;
+            if (tag.startsWith("nbt-double:") || tag.startsWith("nbtDouble:")) {
+                result = setNBTNumber(result, NBTNumber.DOUBLE, tag);
+                continue;
+            }
 
-                try {
-                    short POWER = Short.parseShort(effectPower);
-                    if (POWER > 256) power = 256;
-                    else power = POWER;
-                } catch (NumberFormatException e) {
-                    power = 1;
-                }
+            if(tag.startsWith("attribute:")) {
+                result = setAttribute(result, tag);
+                continue;
+            }
 
-                try {
-                    int DURATION = Integer.parseInt(effectDuration);
-                    duration = Math.min(DURATION, 999999);
-                } catch (NumberFormatException e) {
-                    duration = 120;
-                }
-
-                PotionMeta im = (PotionMeta) result.getItemMeta();
-
-                if (!value.contains("name:")) im.setDisplayName(TextUtils.color("&dCustom potion"));
-
-                if (effect.contains(",")) {
-                    String[] effectList = effect.split(",");
-                    for (String effect2 : effectList) addEffect(effect2, im, power, duration);
-                } else {
-                    addEffect(effect, im, power, duration);
-
-                    if(ID.equalsIgnoreCase("splash_potion")) {
-                        PotionEffect first = im.getCustomEffects().stream().findAny().get();
-                        String effStr = first.getType().getName();
-
-                        String eff = effStr.equals("HARM")
-                                ? "INSTANT_DAMAGE"
-                                : effStr.equals("HEAL") ? "INSTANT_HEAL" : effStr;
-
-                        Potion pot = new Potion(PotionType.valueOf(eff), power);
-                        pot.setSplash(true);
-
-                        if(!eff.contains("INSTANT_DAMAGE") && !eff.contains("HEAL"))
-                            pot.setHasExtendedDuration(duration == 1);
-
-                        pot.apply(result);
-                        continue;
-                    }
-                }
-
-                result.setItemMeta(im);
+            if(tag.contains(":")) {
+                addEnchantment(result, tag);
             }
         }
+
+        itemID = "";
+        attributeIndex = 0;
+        totalAttributeCount = 0;
+        setAttackDamage = false;
+
         return result;
     }
+
+    // TODO Check for ID
+    @SuppressWarnings("deprecation")
+    private static void setID(ItemStack input, String tag) {
+        String id = tag.substring(tag.indexOf(":") + 1);
+
+        if (id.contains(":")) {
+            final String[] separate = id.split(":");
+
+            id = separate[0];
+            final int damage = Integer.parseInt(separate[1]);
+
+            input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID(id)));
+
+            try {
+                if (damage > 9999) {
+                    input.setDurability((short) 1);
+                    return;
+                }
+
+                input.setDurability((short) damage);
+            } catch (NumberFormatException e) {
+                input.setDurability((short) 1);
+            }
+        } else {
+            itemID = id;
+
+            if(itemID.equalsIgnoreCase("splash_potion"))
+                input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID("potion")));
+            else if(itemID.equalsIgnoreCase("sign") && !VersionUtils.usesVersionBetween("1.4.x", "1.13.x")) {
+                input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID("oak_sign")));
+            } else if(itemID.equalsIgnoreCase("bed") && !VersionUtils.usesVersionBetween("1.4.x", "1.12.x")) {
+                input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID("red_bed")));
+            } else if(itemID.equalsIgnoreCase("boat") && !VersionUtils.usesVersionBetween("1.4.x", "1.8.x")) {
+                input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID("oak_boat")));
+            } else {
+                final Material mat = MaterialUtils.getMaterialByID(id);
+
+                if(mat != null) input.setType(Objects.requireNonNull(MaterialUtils.getMaterialByID(id)));
+                else input.setType(Material.STONE);
+            }
+        }
+    }
+
+    // TODO Check for amount
+    private static void setAmount(ItemStack input, String tag) {
+        try {
+            final int amount = Integer.parseInt(tag.split(":")[1]);
+            input.setAmount(Math.max(1, Math.min(amount, 64)));
+        } catch (NumberFormatException e) {
+            input.setAmount(1);
+        }
+    }
+
+    // TODO Check for "player"
+    @SuppressWarnings("deprecation")
+    private static void setSkullFromPlayerName(ItemStack input, String tag) {
+        if ((VersionUtils.usesVersionBetween("1.1.x", "1.12.x")
+                ? input.getType().toString().equals("SKULL_ITEM")
+                : input.getType().toString().equals("PLAYER_HEAD")
+        ) && (!VersionUtils.usesVersionBetween("1.1.x", "1.12.x") || input.getDurability() == 3)
+        ) {
+            String playername = tag.split(":")[1];
+
+            SkullMeta sm = (SkullMeta) input.getItemMeta();
+            assert sm != null;
+
+            if(VersionUtils.usesVersionBetween("1.1.x", "1.11.x")) sm.setOwner(playername);
+            else sm.setOwningPlayer(Bukkit.getOfflinePlayer(playername));
+
+            input.setItemMeta(sm);
+        }
+    }
+
+    // TODO Check for "pattern"
+    private static void setBannerPattern(ItemStack input, String tag) {
+        if(input.getType().name().contains("BANNER")) {
+            String pattern = tag.split(":")[1];
+            String type = pattern.split(",")[0];
+            String color = pattern.split(",")[1];
+
+            BannerMeta bm = (BannerMeta) input.getItemMeta();
+            assert bm != null;
+
+            bm.addPattern(new Pattern(DyeColor.valueOf(color.toUpperCase()), PatternType.valueOf(type.toUpperCase())));
+
+            input.setItemMeta(bm);
+        }
+    }
+
+    // TODO Check for "urlCode"
+    @SuppressWarnings("deprecation")
+    private static ItemStack setUrlCode(ItemStack input, String tag) {
+        if((VersionUtils.usesVersionBetween("1.1.x", "1.12.x")
+                ? input.getType().toString().equals("SKULL_ITEM")
+                : input.getType().toString().equals("PLAYER_HEAD")
+        ) && (!VersionUtils.usesVersionBetween("1.1.x", "1.12.x") || input.getDurability() == 3)
+        ) {
+            final String code = tag.split(":")[1];
+
+            if(code.startsWith("ey")) return SkullCreator.itemWithBase64(input, code);
+            else return SkullCreator.itemWithUrl(input, code);
+        }
+
+        return input;
+    }
+
+    // TODO Check for "color"
+    private static void setArmorColor(ItemStack input, String tag) {
+        if (input.getType().toString().contains("LEATHER")) {
+            if(input.hasItemMeta() && !(input.getItemMeta() instanceof LeatherArmorMeta)) return;
+
+            final String[] colors = tag.split(":")[1].split(",");
+            final LeatherArmorMeta lam = (LeatherArmorMeta) input.getItemMeta();
+            assert lam != null;
+
+            try {
+                int red = Integer.parseInt(colors[0]);
+                int green = Integer.parseInt(colors[1]);
+                int blue = Integer.parseInt(colors[2]);
+
+                try {
+                    lam.setColor(Color.fromRGB(red, green, blue));
+                    input.setItemMeta(lam);
+                } catch (IllegalArgumentException e) {
+                    lam.setColor(Color.fromRGB(0, 0, 0));
+                    input.setItemMeta(lam);
+                }
+
+            } catch (NumberFormatException e) {
+                lam.setColor(Color.fromRGB(0, 0, 0));
+                input.setItemMeta(lam);
+            }
+        }
+    }
+
+    // TODO Check for name
+    private static void setDisplayName(ItemStack input, String tag) {
+        final ItemMeta im = input.getItemMeta();
+        assert im != null;
+
+        final String name = TextUtils.color(tag.substring(tag.indexOf(":") + 1)
+                .replace("_", " ")
+                .replace("{us}", "_"));
+
+        im.setDisplayName(name);
+        input.setItemMeta(im);
+    }
+
+    // TODO Check for lore
+    private static void setLore(ItemStack input, String tag) {
+        final List<String> lore = new ArrayList<>();
+        final ItemMeta im = input.getItemMeta();
+        assert im != null;
+
+        if (tag.contains("|")) {
+            final String[] lines = tag.substring(tag.indexOf(":") + 1).split("\\|");
+
+            for (String line : lines) {
+                final String action = line.replace("_", " ").replace("{us}", "_");
+                lore.add(TextUtils.color(action));
+            }
+        } else {
+            final String line = tag.substring(tag.indexOf(":") + 1);
+            lore.add(TextUtils.color(line.replace("_", " ").replace("{us}", "_")));
+        }
+
+        im.setLore(lore);
+        input.setItemMeta(im);
+    }
+
+    // TODO Check for enchantments
+    private static void addEnchantment(ItemStack input, String tag) {
+        final String enchantName = tag.split(":")[0].toLowerCase();
+
+        if (enchants.containsKey(enchantName) || enchants.keySet().stream()
+                .anyMatch(enchID -> enchID.replace("_", "").equalsIgnoreCase(enchantName))
+        ) {
+            final ItemMeta im = input.getItemMeta();
+            assert im != null;
+
+            if(enchants.keySet().stream()
+                    .noneMatch(id -> id.replace("_", "").equalsIgnoreCase(enchantName)))
+                return;
+
+            final Enchantment enchantment = !enchants.containsKey(enchantName)
+                    ? enchants.keySet().stream()
+                        .filter(id -> id.replace("_", "").equalsIgnoreCase(enchantName))
+                        .map(enchants::get).map(Enchantment.class::cast).findFirst().get()
+                    : enchants.get(enchantName);
+
+            try {
+                final int level = tag.split(":").length >= 2
+                        ? Integer.parseInt(tag.split(":")[1]) : 1;
+
+                im.addEnchant(enchantment, level, true);
+                input.setItemMeta(im);
+            } catch (NumberFormatException ignored) {}
+        }
+    }
+
+    // TODO Check for "hideFlags"
+    private static void hideFlags(ItemStack input) {
+        final ItemMeta im = input.getItemMeta();
+        assert im != null;
+
+        im.addItemFlags(ItemFlag.HIDE_POTION_EFFECTS, ItemFlag.HIDE_ATTRIBUTES, ItemFlag.HIDE_DESTROYS,
+                ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_PLACED_ON, ItemFlag.HIDE_UNBREAKABLE);
+
+        if(!VersionUtils.usesVersionBetween("1.1.x", "1.15.x"))
+            im.addItemFlags(ItemFlag.HIDE_DYE);
+
+        input.setItemMeta(im);
+    }
+
+    // TODO Check for "hideFlag"
+    private static void hideFlag(ItemStack input, String tag) {
+        final ItemMeta im = input.getItemMeta();
+        assert im != null;
+
+        try {
+            String flagStr = tag.split(":")[1];
+
+            if(!flagStr.startsWith("hide")) flagStr = "hide_" + flagStr;
+            final ItemFlag flag = ItemFlag.valueOf(flagStr.toUpperCase());
+            im.addItemFlags(flag);
+
+            input.setItemMeta(im);
+        } catch(IllegalArgumentException ignored) {}
+    }
+
+    // TODO Check for "customModelData"
+    private static void setCustomModelData(ItemStack input, String tag) {
+        if(!VersionUtils.usesVersionBetween("1.1.x", "1.13.x")) {
+            final ItemMeta im = input.getItemMeta();
+            assert im != null;
+
+            try {
+                im.setCustomModelData(Integer.parseInt(tag.split(":")[1]));
+                input.setItemMeta(im);
+            } catch(NumberFormatException ignored) {}
+        }
+    }
+
+    // TODO Check for "unbreakable"
+    private static ItemStack setUnbreakable(ItemStack input) {
+        if (!VersionUtils.usesVersionBetween("1.1.x", "1.8.x")) {
+            final ItemMeta im = input.getItemMeta();
+            assert im != null;
+
+            im.setUnbreakable(true);
+            input.setItemMeta(im);
+
+            return input;
+        } else {
+            return NBTEditor.set(input, (byte) 1, "Unbreakable");
+        }
+    }
+
+    // TODO Check for "nbt-string"
+    private static ItemStack setNBTString(ItemStack input, String tag) {
+        if(tag.split(":").length < 3) return input;
+
+        final String nbt = tag.split(":")[1];
+        final String string = tag.split(":")[2]
+                .replace("_", " ")
+                .replace("{us}", "_");
+
+        return NBTEditor.set(input, string, nbt);
+    }
+
+    // TODO Check for "nbt-<number>"
+    private static ItemStack setNBTNumber(ItemStack input, NBTNumber type, String tag) {
+        if(tag.split(":").length < 3) return input;
+        final String nbt = tag.split(":")[1];
+
+        try {
+            switch(type) {
+                case BYTE: return NBTEditor.set(input, Byte.parseByte(tag.split(":")[2]), nbt);
+                case SHORT: return NBTEditor.set(input, Short.parseShort(tag.split(":")[2]), nbt);
+                case INTEGER: return NBTEditor.set(input, Integer.parseInt(tag.split(":")[2]), nbt);
+                case FLOAT: return NBTEditor.set(input, Float.parseFloat(tag.split(":")[2]), nbt);
+                case DOUBLE: return NBTEditor.set(input, Double.parseDouble(tag.split(":")[2]), nbt);
+            }
+        } catch(NumberFormatException ignored) {}
+
+        return input;
+    }
+
+    // TODO Check for "attribute"
+    private static ItemStack setAttribute(ItemStack input, String tag) {
+        final String val = tag.split(":")[1];
+        final String newAtr = val.split("/")[0];
+        String atr = val.split("/")[0];
+
+        if(VersionUtils.usesVersionBetween("1.1.x", "1.15.x")) {
+            atr = WordUtils.capitalizeFully(atr
+                    .replace("_", " "))
+                    .replace(" ", "");
+            atr = Character.toString(atr.charAt(0)).toLowerCase() + atr.substring(1);
+        }
+
+        float atrVal;
+
+        try {
+            atrVal = Float.parseFloat(val.split("/")[1]);
+        } catch (NumberFormatException ne) {
+            atrVal = 0;
+        }
+
+        int operation;
+
+        if(val.split("/").length <= 2) {
+            operation = 0;
+        } else {
+            try {
+                operation = Integer.parseInt(val.split("/")[2]);
+            } catch (NumberFormatException ne) {
+                operation = 0;
+            }
+        }
+
+        String slot = !VersionUtils.usesVersionBetween("1.1.x", "1.12.x") ? "hand" : "mainhand";
+        boolean hasSlot = true;
+
+        if(val.split("/").length <= 3) hasSlot = false;
+        else slot = val.split("/")[3];
+
+        if(!VersionUtils.usesVersionBetween("1.1.x", "1.12.x")) {
+            final ItemMeta im = input.getItemMeta();
+            assert im != null;
+
+            final AttributeModifier.Operation op = operation == 0
+                    ? AttributeModifier.Operation.ADD_NUMBER
+                    : operation == 1 ? AttributeModifier.Operation.ADD_SCALAR
+                    : operation == 2 ? AttributeModifier.Operation.MULTIPLY_SCALAR_1
+                    : AttributeModifier.Operation.ADD_NUMBER;
+
+            if(hasSlot) {
+                im.addAttributeModifier(Attribute.valueOf("GENERIC_" + newAtr.toUpperCase()),
+                        new AttributeModifier(
+                                UUID.randomUUID(),
+                                "GENERIC_" + newAtr.toUpperCase(),
+                                atrVal,
+                                op,
+                                EquipmentSlot.valueOf(slot.toUpperCase())
+                        )
+                );
+            } else {
+                im.addAttributeModifier(Attribute.valueOf("GENERIC_" + newAtr.toUpperCase()),
+                        new AttributeModifier("GENERIC_" + newAtr.toUpperCase(), atrVal, op));
+            }
+
+            input.setItemMeta(im);
+            return input;
+        }
+
+        final NBTEditor.NBTCompound compound = NBTEditor.getNBTCompound(input);
+
+        if(atr.equals("attackDamage")) setAttackDamage = true;
+
+        compound.set("generic." + atr, "tag", "AttributeModifiers", null, "AttributeName");
+        compound.set("generic." + atr, "tag", "AttributeModifiers", attributeIndex, "Name");
+        if(hasSlot) compound.set(slot, "tag", "AttributeModifiers", attributeIndex, "Slot");
+        compound.set(operation, "tag", "AttributeModifiers", attributeIndex, "Operation");
+        compound.set(atrVal, "tag", "AttributeModifiers", attributeIndex, "Amount");
+        compound.set(new int[] { 0, 0, 0, 0 }, "tag", "AttributeModifiers", attributeIndex % 2 == 0 ? 0 : 1, "UUID");
+        compound.set(99L, "tag", "AttributeModifiers", attributeIndex, "UUIDMost");
+        compound.set(77530600L, "tag", "AttributeModifiers", attributeIndex, "UUIDLeast");
+
+        attributeIndex++;
+
+        if(attributeIndex == totalAttributeCount && !setAttackDamage) {
+            for(ToolDamage tooldmg : ToolDamage.values()) {
+                if(input.getType().name().equals(tooldmg.name())) {
+                    compound.set("generic.attackDamage", "tag", "AttributeModifiers", null, "AttributeName");
+                    compound.set("generic.attackDamage", "tag", "AttributeModifiers", attributeIndex, "Name");
+                    compound.set("mainhand", "tag", "AttributeModifiers", attributeIndex, "Slot");
+                    compound.set(0, "tag", "AttributeModifiers", attributeIndex, "Operation");
+                    compound.set(tooldmg.get(), "tag", "AttributeModifiers", attributeIndex, "Amount");
+                    compound.set(new int[] { 0, 0, 0, 0 }, "tag", "AttributeModifiers", attributeIndex % 2 == 0 ? 0 : 1, "UUID");
+                    compound.set(99L, "tag", "AttributeModifiers", attributeIndex, "UUIDMost");
+                    compound.set(77530600L, "tag", "AttributeModifiers", attributeIndex, "UUIDLeast");
+
+                    attributeIndex++;
+                    break;
+                }
+            }
+        }
+
+        return NBTEditor.getItemFromTag(compound);
+    }
+
+    // TODO Check for potion effects
+    @SuppressWarnings("deprecation")
+    private static void addEffect(ItemStack input, String tag, String tagCluster) {
+        if(input.getType().equals(Material.POTION)) {
+            final String[] v = tag.split("/");
+            final String effect = v[0].split(":")[1];
+            final String effectPower = v[1];
+            final String effectDuration = v[2];
+
+            short power;
+            int duration;
+
+            try {
+                short POWER = Short.parseShort(effectPower);
+                if (POWER > 256) power = 256;
+                else power = POWER;
+            } catch (NumberFormatException e) {
+                power = 1;
+            }
+
+            try {
+                int DURATION = Integer.parseInt(effectDuration);
+                duration = Math.min(DURATION, 999999);
+            } catch (NumberFormatException e) {
+                duration = 120;
+            }
+
+            final PotionMeta im = (PotionMeta) input.getItemMeta();
+            assert im != null;
+
+            if (!tagCluster.contains("name:")) im.setDisplayName(TextUtils.color("&dCustom potion"));
+
+            if (effect.contains(",")) {
+                final String[] effectList = effect.split(",");
+                for (String effect2 : effectList) addEffect(effect2, im, power, duration);
+            } else {
+                addEffect(effect, im, power, duration);
+
+                if(itemID.equalsIgnoreCase("splash_potion")) {
+                    final PotionEffect first = im.getCustomEffects().stream().findAny().get();
+                    final String effStr = first.getType().getName();
+
+                    final String eff = effStr.equals("HARM")
+                            ? "INSTANT_DAMAGE"
+                            : effStr.equals("HEAL") ? "INSTANT_HEAL" : effStr;
+
+                    final Potion pot = new Potion(PotionType.valueOf(eff), power);
+                    pot.setSplash(true);
+
+                    if(!eff.contains("INSTANT_DAMAGE") && !eff.contains("HEAL"))
+                        pot.setHasExtendedDuration(duration == 1);
+
+                    pot.apply(input);
+                    return;
+                }
+            }
+
+            input.setItemMeta(im);
+        }
+    }
+
+    public enum NBTNumber {
+        BYTE, SHORT, INTEGER, FLOAT, DOUBLE
+    }
+
 
     private static void addEffect(String effect, PotionMeta im, short power, int duration) {
         if (!VersionUtils.usesVersionBetween("1.1.x", "1.8.x")) {
@@ -607,11 +744,9 @@ public class ItemBuilder {
         public int pre19() {
             return pre;
         }
-
         public int post19() {
             return post;
         }
-
         public int get() {
             return VersionUtils.usesVersionBetween("1.1.x", "1.8.x") ? pre19() : post19();
         }
